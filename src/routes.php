@@ -40,6 +40,22 @@ $app->post('/addNama', function (Request $request, Response $response, array $ar
 });
 
 $app->get('/listBasecamp', function (Request $request, Response $response, array $args) use ($app) {
+    //Get izin
+    $sql = "SELECT `uid` FROM `Users_blacklist` WHERE Date(blacklist) >= CURRENT_DATE";
+
+    try {
+        $db = $this->get("db");
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute();
+
+        $izins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    } catch (PDOException $e) {
+        $error = ['error' => ['text' => $e->getMessage()]];
+        return $response->withJson($error);
+    }
+
     //count shuffled
     $sql="SELECT DISTINCT `uid` FROM `Users_shuffled`";
 
@@ -49,24 +65,33 @@ $app->get('/listBasecamp', function (Request $request, Response $response, array
         $stmt = $db->prepare($sql);
         $stmt->execute();
 
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
         return $response->withJson($error);
     }
 
-    $count = count($results);
+    $count = 0;
+    $izinCount = 0;
 
-    //Jika kurang orang, shuffle untuk menambahkan
-    if($count < (RESERVED_COUNT + ACTIVE_COUNT) ){
-        $app->subRequest('GET', '/shuffleUsers');
+    foreach ($users as $user) {
+        if(!in_array($user['uid'],array_column($izins,'uid'))){
+            $count++;
+        }else {
+            $izinCount++;
+        }
     }
 
     //Ambil sebanyak yang dibutuhkan
-    $takeLimit = RESERVED_COUNT + ACTIVE_COUNT;
+    $takeLimit = RESERVED_COUNT + ACTIVE_COUNT + $izinCount;
 
-    $sql = "SELECT DISTINCT `name`,`nim` FROM `Users_shuffled` INNER JOIN `Users`ON Users_shuffled.uid = Users.id LIMIT " . $takeLimit;
+    //Jika kurang orang, shuffle untuk menambahkan
+    if($count < $takeLimit ){
+        $app->subRequest('GET', '/shuffleUsers');
+    }
+
+    $sql = "SELECT DISTINCT `uid`,`name`,`nim` FROM `Users_shuffled` INNER JOIN `Users`ON Users_shuffled.uid = Users.id LIMIT " . $takeLimit;
 
     try {
         $db = $this->get("db");
@@ -76,14 +101,21 @@ $app->get('/listBasecamp', function (Request $request, Response $response, array
 
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return $response->withJson($results);
-
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
         return $response->withJson($error);
     }
 
-    return $response->withJson(['sukses']);
+    //Filter user yang gak bisa datang
+    $results = array_filter($results, function ($item) use ($izins) {
+        if (!in_array($item['uid'], array_column($izins,'uid'))) {
+            return true;
+        }else {
+            return false;
+        }
+    });
+
+    return $response->withJson($results);
 });
 
 $app->get('/shuffleUsers', function (Request $request, Response $response, array $args) {
@@ -104,7 +136,6 @@ $app->get('/shuffleUsers', function (Request $request, Response $response, array
         return $response->withJson($error);
     }
 
-    //Acak
     shuffle($results);
 
     //Insert
@@ -264,6 +295,8 @@ $app->get('/listCurrent', function (Request $request, Response $response, array 
 });
 
 $app->post('/tambahBlacklist', function (Request $request, Response $response, array $args) {
+    //Tambah ke daftar
+
     $sql = "INSERT INTO `Users_blacklist`(`uid`, `reason`, `type`, `blacklist`, `length`) VALUES (:uid,:reason,:type,:blacklist,:length)";
 
     try {
@@ -276,11 +309,23 @@ $app->post('/tambahBlacklist', function (Request $request, Response $response, a
                         ':blacklist' => $request->getParam('blacklist'),
                         ':length' => $request->getParam('length')]);
 
-        return $response->withJson(['sukses']);
-
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
         return $response->withJson($error);
+    }
+
+    //Cek apakah hari ini
+    $today = date("Y-m-d");
+    $izinDate = strtotime($request->getParam('blacklist'));
+    $izinDate = date("Y-m-d",$izinDate);
+
+    if($today == $izinDate){
+        //get reserved
+
+        //TODO push message via line
+
+    }else {
+        return $response->withJson(['sukses']);
     }
 
 });
