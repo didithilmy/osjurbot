@@ -36,6 +36,7 @@ Parameter
 | Parameter | Keterangan                |
 | --------- | ------------------------- |
 | uid       | UID dari user yang sampai |
+| token     | Token TOTP                |
 
 
 

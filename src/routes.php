@@ -1,5 +1,6 @@
 <?php
 
+use OTPHP\TOTP;
 use Slim\Http\Request;
 use Slim\Http\Response;
 
@@ -8,6 +9,8 @@ define("RESERVED_COUNT",15); //Orang yang terjadwal jika ada masalah pada ACTIVE
 define("ACTIVE_COUNT",45); //Orang yang akan dijadwalkan dataang
 define("SAFE_COUNT",5); //Selisih antara jumlah yang ada dan kuorum yang masih aman
 define("KUORUM",30); //Minimal orang yang ada
+
+define("SECRET","SECRETCODE");
 
 // Routes
 
@@ -19,6 +22,16 @@ $app->get('/', function (Request $request, Response $response, array $args) {
     return $this->renderer->render($response, 'index.phtml', $args);
 });
 
+$app->get('/token', function (Request $request, Response $response, array $args) {
+    $totp = TOTP::create(
+        SECRET,
+        300 // 5 menit
+    );
+    $totp->setLabel('SPARTA HMIF');
+
+    return $response->withJson($totp->getQrCodeUri());
+});
+
 $app->post('/addNama', function (Request $request, Response $response, array $args) {
 
     $sql="INSERT INTO `Users`(`name`, `mid`, `nim`) VALUES (:name,:mid,:nim)";
@@ -28,8 +41,8 @@ $app->post('/addNama', function (Request $request, Response $response, array $ar
 
         $stmt = $db->prepare($sql);
         $stmt->execute([':name' => $request->getParam('name'),
-                        ':mid' => $request->getParam('mid'),
-                        ':nim' => $request->getParam('nim')]);
+        ':mid' => $request->getParam('mid'),
+        ':nim' => $request->getParam('nim')]);
 
         return $response->withJson(['sukses']);
 
@@ -157,6 +170,18 @@ $app->post('/sampai', function (Request $request, Response $response, array $arg
 
     $sql = "INSERT INTO `Current`(`uid`) VALUES (:uid)";
     $uid =  $request->getParam('uid');
+    $token = $request->getParam('token');
+
+    $totp = TOTP::create(
+        SECRET,
+        300 // 5 menit
+    );
+    $totp->setLabel('SPARTA HMIF');
+
+    if(!$totp->verify($token)){
+        $error = ['error' => ['text' => "Token invalid"]];
+        return $response->withJson($error);
+    }
 
     try {
         $db = $this->get("db");
@@ -248,7 +273,7 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
 
         $stmt = $db->prepare($sql);
         $stmt->execute([':uid' => $uid,
-                        ':jam_masuk' => $jamMasuk]);
+        ':jam_masuk' => $jamMasuk]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -296,7 +321,7 @@ $app->get('/listCurrent', function (Request $request, Response $response, array 
         $count = count($result);
 
         return $response->withJson(['count' => $count,
-                                    'users' => $result]);
+        'users' => $result]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -315,10 +340,10 @@ $app->post('/tambahBlacklist', function (Request $request, Response $response, a
 
         $stmt = $db->prepare($sql);
         $stmt->execute([':uid' => $request->getParam('uid'),
-                        ':reason' => $request->getParam('reason'),
-                        ':type' => $request->getParam('type'),
-                        ':blacklist' => $request->getParam('blacklist'),
-                        ':length' => $request->getParam('length')]);
+        ':reason' => $request->getParam('reason'),
+        ':type' => $request->getParam('type'),
+        ':blacklist' => $request->getParam('blacklist'),
+        ':length' => $request->getParam('length')]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
