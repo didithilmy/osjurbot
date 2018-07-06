@@ -204,7 +204,7 @@ $app->post('/sampai', function (Request $request, Response $response, array $arg
 
 });
 
-$app->post('/pulang', function (Request $request, Response $response, array $args) {
+$app->post('/pulang', function (Request $request, Response $response, array $args) use ($app) {
 
     // Cek ada di tempat
     $sql = "SELECT * from Current where uid = :uid";
@@ -227,6 +227,17 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
     if(count($result)!=1){
         $error = ['error' => ['text' => "Belum masuk"]];
         return $response->withJson($error);
+    }
+
+    //Cek kuorum
+    $res = $app->subRequest('GET', '/listCurrent');
+    $count = json_decode($res->getBody(),true)['count'];
+
+    if($count <= KUORUM){
+        $error = ['error' => ['text' => "Kuorum tidak tercapai"]];
+        return $response->withJson($error);
+    }elseif ($count < (KUORUM + SAFE_COUNT)) {
+        // TODO give warning
     }
 
     //Insert log
