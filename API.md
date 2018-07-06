@@ -26,6 +26,19 @@ Return (array)
 | nim       | NIM user                 |
 | start     | Start waktu harus datang |
 
+## Saat Sampai
+
+Location : `/sampai`
+Method : POST
+
+Parameter 
+
+| Parameter | Keterangan                |
+| --------- | ------------------------- |
+| uid       | UID dari user yang sampai |
+
+
+
 ## Saat ingin pulang
 
 Location : `/pulang`
@@ -39,7 +52,7 @@ Parameter
 
 ## List yang Ada di Basecamp
 
-Location : /`listCurrent`
+Location : `/listCurrent`
 Method : GET
 
 Return
@@ -63,9 +76,11 @@ Method : POST
 
 Parameter
 
-| Parameter |                    |
-| --------- | ------------------ |
-| uid       | User id            |
-| reason    | Alasan tidak bisa  |
-| tanggal   | Tanggal tidak bisa |
+| Parameter |                                                |
+| --------- | ---------------------------------------------- |
+| uid       | User id                                        |
+| reason    | Alasan tidak bisa                              |
+| type      | Tipe:<br />1 = seharian <br />2 = beberapa jam |
+| blacklist | Tanggal dan jam tidak bisa                     |
+| length    | Lama dalam jam (jika tipe 2)                   |
 
