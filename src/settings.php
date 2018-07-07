@@ -23,5 +23,11 @@ return [
             'path' => isset($_ENV['docker']) ? 'php://stdout' : __DIR__ . '/../logs/app.log',
             'level' => \Monolog\Logger::DEBUG,
         ],
+
+        // LINE Bot instance
+        'bot' => [
+            'channelToken' => getenv('LINEBOT_CHANNEL_TOKEN') ?: '',
+            'channelSecret' => getenv('LINEBOT_CHANNEL_SECRET') ?: '',
+        ],
     ],
 ];

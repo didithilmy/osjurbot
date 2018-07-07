@@ -26,3 +26,16 @@ $container['db'] = function($c) {
 	$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 	return $pdo;
 };
+
+// LINE Bot Instance
+$container['bot'] = function ($c) {
+    $settings = $c->get('settings');
+    $channelSecret = $settings['bot']['channelSecret'];
+    $channelToken = $settings['bot']['channelToken'];
+    $apiEndpointBase = $settings['apiEndpointBase'];
+    $bot = new \LINE\LINEBot(new \LINE\LINEBot\HTTPClient\CurlHTTPClient($channelToken), [
+        'channelSecret' => $channelSecret,
+        'endpointBase' => $apiEndpointBase, // <= Normally, you can omit this
+    ]);
+    return $bot;
+};
