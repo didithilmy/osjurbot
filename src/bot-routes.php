@@ -8,8 +8,14 @@ use \LINE\LINEBot\Exception\InvalidSignatureException;
 use \LINE\LINEBot\Exception\InvalidEventRequestException;
 use \LINE\LINEBot\Event\MessageEvent;
 use \LINE\LINEBot\Event\MessageEvent\TextMessage;
+use \LINE\LINEBot\MessageBuilder\MultiMessageBuilder;
+use \LINE\LINEBot\MessageBuilder\TextMessageBuilder;
+use \LINE\LINEBot\MessageBuilder\ImagemapMessageBuilder;
+use \LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder;
+use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
+use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
 
-define("LIFF_ID", getenv("LIFF_ASSOCIATE_INA") ?: '1592475912-K596Y0YE');
+define("LIFF_ID_ASSOCINA", getenv("LIFF_ASSOCIATE_INA") ?: '1592475912-K596Y0YE');
 // Routes
 
 $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
@@ -95,6 +101,25 @@ function processText($bot, $event) {
         case "logout":
             if($event->isUserEvent()) {
                 $bot->replyText($replyToken, "Development on progress.");
+            }
+            break;
+        case "assoc":
+            if($event->isUserEvent()) {
+                $messageBuilder = new MultiMessageBuilder();
+                $messageBuilder->add(new TextMessageBuilder("Halo! Klik tombol di bawah ini ya buat nyambungin akun INA kamu"));
+                $messageBuilder->add(new ImagemapMessageBuilder(
+                    BASE_URL."/static/associna",
+                    "Sambungkan akun INA kamu",
+                    new BaseSizeBuilder(466, 1040),
+                    [
+                        new ImagemapUriActionBuilder(
+                            'line://app/'.LIFF_ID_ASSOCINA,
+                            new AreaBuilder(0, 0, 1040, 466)
+                        )
+                    ]
+                ));
+                $messageBuilder->add(new TextMessageBuilder("Apabila tombol diatas tidak berfungsi, coba buka ".BASE_URL.'/user/associateManual?userId='.$event->getUserId()));
+                $bot->replyMessage($replyToken, $messageBuilder);
             }
             break;
         case "/status":

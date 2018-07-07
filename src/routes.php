@@ -220,7 +220,7 @@ $app->get('/listCurrent', function (Request $request, Response $response, array 
 
 $app->get('/user/associateManual', function (Request $request, Response $response, array $args) {
     $userId = $request->getParam("userId");
-    return $response->withRedirect(INA_LOGIN_URL . "/cas/login?service=" . rawurlencode(BASE_URL . "/user/associate/propagate"));
+    return $response->withRedirect(INA_LOGIN_URL . "/cas/login?service=" . rawurlencode(BASE_URL . "/user/associate/propagate?userId=".$userId));
 });
 
 $app->get('/user/associate', function (Request $request, Response $response, array $args) {
