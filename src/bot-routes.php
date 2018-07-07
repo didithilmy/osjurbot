@@ -9,6 +9,7 @@ use \LINE\LINEBot\Exception\InvalidEventRequestException;
 use \LINE\LINEBot\Event\MessageEvent;
 use \LINE\LINEBot\Event\MessageEvent\TextMessage;
 
+define("LIFF_ID", getenv("LIFF_ASSOCIATE_INA") ?: '1592475912-K596Y0YE');
 // Routes
 
 $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
@@ -17,6 +18,7 @@ $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $r
     /** @var \Monolog\Logger $logger */
     $logger = $this->logger;
     $signature = $req->getHeader(HTTPHeader::LINE_SIGNATURE);
+
     if (empty($signature)) {
         return $res->withStatus(400, 'Bad Request');
     }
@@ -37,11 +39,73 @@ $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $r
             $logger->info('Non text message has come');
             continue;
         }
-        $replyText = $event->getText();
-        $logger->info('Reply text: ' . $replyText);
-        $resp = $bot->replyText($event->getReplyToken(), $replyText);
-        $logger->info($resp->getHTTPStatus() . ': ' . $resp->getRawBody());
+
+        processText($bot, $event);
+
+        //$replyText = $event->getText();
+        //$logger->info('Reply text: ' . $replyText);
+        //$resp = $bot->replyText($event->getReplyToken(), $replyText);
+        //$logger->info($resp->getHTTPStatus() . ': ' . $resp->getRawBody());
     }
     $res->write('OK');
     return $res;
 });
+
+/** @var \LINE\LINEBot\Event\MessageEvent\TextMessage $event */
+function processText($bot, $event) {
+    $allowedGroupIds = explode(",", getenv("ALLOWED_GROUPS") ?: '');
+
+    $text = $event->getText();
+    $replyToken = $event->getReplyToken();
+    $words = explode(" ", $text);
+    $firstWord = strtolower($words[0]);
+
+    /** @var \LINE\LINEBot $bot */
+
+    switch ($firstWord) {
+        case "/uid":
+            $uid = $event->getUserId();
+            $bot->replyText($replyToken, $uid);
+            break;
+        case "/gid":
+            if($event->isUserEvent()) {
+                $uid = $event->getUserId();
+            } else if($event->isGroupEvent()) {
+                $uid = $event->getGroupId();
+            } else if($event->isRoomEvent()) {
+                $uid = $event->getRoomId();
+            } else {
+                $uid = "UNKNOWN";
+            }
+
+            /** @var \LINE\LINEBot $bot */
+
+            $bot->replyText($replyToken, $uid);
+            break;
+        case "/userinfo":
+            if($event->isUserEvent()) {
+                $bot->replyText($replyToken, "Development on progress");
+            }
+            break;
+        case "login":
+            if($event->isUserEvent()) {
+                $bot->replyText($replyToken, "Development on progress. Token: " . $words[1]);
+            }
+            break;
+        case "logout":
+            if($event->isUserEvent()) {
+                $bot->replyText($replyToken, "Development on progress.");
+            }
+            break;
+        case "/status":
+            if($event->isGroupEvent()) {
+                if(in_array($event->getGroupId(), $allowedGroupIds)) {
+                    $bot->replyText($replyToken, "Development on progress.");
+                } else {
+                    $bot->replyText($replyToken, "Unauthorized.");
+                    $bot->leaveGroup($event->getGroupId());
+                }
+            }
+            break;
+    }
+}

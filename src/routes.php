@@ -11,6 +11,8 @@ define("SAFE_COUNT",5); //Selisih antara jumlah yang ada dan kuorum yang masih a
 define("KUORUM",30); //Minimal orang yang ada
 
 define("SECRET","SECRETCODE");
+define("BASE_URL","https://osjurbot.didithilmy.com/public");
+define("INA_LOGIN_URL","https://login.itb.ac.id");
 
 // Routes
 
@@ -214,4 +216,66 @@ $app->get('/listCurrent', function (Request $request, Response $response, array 
         return $response->withJson($error);
     }
 
+});
+
+$app->get('/user/associateManual', function (Request $request, Response $response, array $args) {
+    $userId = $request->getParam("userId");
+    return $response->withRedirect(INA_LOGIN_URL . "/cas/login?service=" . rawurlencode(BASE_URL . "/user/associate/propagate"));
+});
+
+$app->get('/user/associate', function (Request $request, Response $response, array $args) {
+    return $this->renderer->render($response, 'assoc.phtml', array("ina_url" => INA_LOGIN_URL, "base_url" => BASE_URL));
+});
+
+$app->get('/user/associate/propagate', function (Request $request, Response $response, array $args) {
+    $ticket = $request->getParam('ticket');
+    $userId = $request->getParam("userId");
+
+    $url = "https://login.itb.ac.id/cas/serviceValidate?ticket=$ticket&service=".rawurlencode(BASE_URL . "/user/associate/propagate?userId=".rawurlencode($userId));
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL,$url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, false);
+    curl_setopt($ch, CURLOPT_HTTPGET, 1);
+    $raw = curl_exec($ch);
+
+    $xml = new \SimpleXMLElement($raw);
+    $xml->registerXPathNamespace('cas', 'http://www.yale.edu/tp/cas');
+
+    foreach($xml->xpath('//cas:authenticationSuccess') as $event) {
+        $mhsName = (string) ($event->xpath('//cas:attributes/cas:cn')[0]);
+        $mhsNIM = (string) ($event->xpath('//cas:attributes/cas:itbNIM')[0]);
+    }
+
+    // Inserts to table
+    $q = "SELECT nim FROM Users WHERE mid=:mid";
+    try {
+        $db = $this->get("db");
+
+        $stmt = $db->prepare($q);
+        $stmt->execute([':mid' => $userId]);
+
+        if($stmt->rowCount() == 0) {
+            $ins = "INSERT INTO `Users`(`name`, `mid`, `nim`, `count`) VALUES (:name,:mid,:nim, 0)";
+            $msg = "Halo, $mhsName ($mhsNIM)!";
+        } else {
+            $ins = "UPDATE `Users` SET `name`=:name, `nim`=:nim WHERE `mid`=:mid";
+            $msg = "Akun ini sekarang dihubungkan ke $mhsName ($mhsNIM).";
+        }
+
+        $sti = $db->prepare($ins);
+        $sti->execute([':mid' => $userId, ':name' => $mhsName, ':nim' => $mhsNIM]);
+
+        /** @var \LINE\LINEBot $bot */
+        $bot = $this->bot;
+        $bot->pushMessage($userId, new \LINE\LINEBot\MessageBuilder\TextMessageBuilder($msg));
+
+        return $this->renderer->render($response, 'propagate.phtml', array("ina_url" => INA_LOGIN_URL, "base_url" => BASE_URL));
+    } catch (PDOException $e) {
+        $error = ['error' => ['text' => $e->getMessage()]];
+        return $response->withJson($error);
+    }
+
+    //return $response->withJson(array('nama' => $mhsName, 'nim' => $mhsNIM));
 });
