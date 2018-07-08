@@ -234,13 +234,36 @@ function logout($db, $bot, $lineMid, $token) {
 
         $count = $stmt->rowCount();
         if ($count <= KUORUM) {
-            pushToAllGroups($bot, new TextMessageBuilder("Basecamp TIDAK kuorum, tolong segera mengisi basecamp bagi yang memungkinkan. Saat ini basecamp terisi $count orang."));
+            pushToAllGroups($bot, new TextMessageBuilder(getNotKuorumText()));
         } elseif ($count < (KUORUM + SAFE_COUNT)) {
             pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
         }
     }
 
     return "Selamat tinggal! Besok dateng lagi ya!!!!!!!!";
+}
+
+function getNotKuorumText(){
+    $i=mt_rand(0,4);
+    $text = "";
+    switch ($i) {
+        case 0:
+            $text = "Basecamp TIDAK kuorum, tolong segera mengisi basecamp bagi yang memungkinkan. Saat ini basecamp terisi $count orang.";
+            break;
+        case 1:
+            $text = "WOI GAK KUORUM!! Cepet dateng ke basecamp. Sekarang cuman ada $count orang.";
+            break;
+        case 2:
+            $text = "$count orang yang ada di basecamp butuh kamu untuk memenuhi kuorum"
+            break;
+        case 3:
+            $text = "Gimana nih, masa di basecamp cuman $count orang.";
+            break;
+        case 4:
+            $text = "Seharian berkelahi\nTentu tidak senang\nKuorum TIDAK terpenuhi\nCuman ada $count orang";
+            break;
+    }
+    return $text;
 }
 
 /** @var \LINE\LINEBot $bot */
