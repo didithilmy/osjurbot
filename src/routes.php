@@ -4,16 +4,6 @@ use OTPHP\TOTP;
 use Slim\Http\Request;
 use Slim\Http\Response;
 
-//Parameter
-define("RESERVED_COUNT",15); //Orang yang terjadwal jika ada masalah pada ACTIVE_COUNT
-define("ACTIVE_COUNT",45); //Orang yang akan dijadwalkan dataang
-define("SAFE_COUNT",5); //Selisih antara jumlah yang ada dan kuorum yang masih aman
-define("KUORUM",30); //Minimal orang yang ada
-
-define("SECRET","SECRETCODE");
-define("BASE_URL","https://osjurbot.didithilmy.com/public");
-define("INA_LOGIN_URL","https://login.itb.ac.id");
-
 // Routes
 
 $app->get('/', function (Request $request, Response $response, array $args) {
@@ -56,8 +46,8 @@ $app->post('/addNama', function (Request $request, Response $response, array $ar
 
 $app->post('/sampai', function (Request $request, Response $response, array $args) {
 
-    $sql = "INSERT INTO `Current`(`uid`) VALUES (:uid)";
-    $uid =  $request->getParam('uid');
+    $sql = "INSERT INTO `Current`(`nim`, `jam_masuk`) VALUES (:nim, :jam_masuk)";
+    $nim =  $request->getParam('nim');
     $token = $request->getParam('token');
 
     $totp = TOTP::create(
@@ -75,7 +65,7 @@ $app->post('/sampai', function (Request $request, Response $response, array $arg
         $db = $this->get("db");
 
         $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid]);
+        $stmt->execute([':nim' => $nim]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -89,14 +79,14 @@ $app->post('/sampai', function (Request $request, Response $response, array $arg
 $app->post('/pulang', function (Request $request, Response $response, array $args) use ($app) {
 
     // Cek ada di tempat
-    $sql = "SELECT * from Current where uid = :uid";
-    $uid = $request->getParam('uid');
+    $sql = "SELECT * from Current where nim = :nim";
+    $nim = $request->getParam('nim');
 
     try {
         $db = $this->get("db");
 
         $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid]);
+        $stmt->execute([':nim' => $nim, ':jam_masuk' => date("Y-m-d H:i:s")]);
 
         $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -126,11 +116,12 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
     $jamMasuk = $result[0]['jam_masuk'];
 
     try {
-        $sql="INSERT INTO `Log`(`uid`,`jam_masuk`) VALUES (:uid,:jam_masuk)";
+        $sql="INSERT INTO `Log`(`nim`,`jam_masuk`, `jam_keluar`) VALUES (:nim,:jam_masuk, :jam_keluar)";
 
         $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid,
-        ':jam_masuk' => $jamMasuk]);
+        $stmt->execute([':nim' => $nim,
+            ':jam_masuk' => $jamMasuk,
+            ':jam_keluar' => date("Y-m-d H:i:s")]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -139,9 +130,9 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
 
     //delete current
     try {
-        $sql="DELETE FROM `Current` WHERE uid = :uid";
+        $sql="DELETE FROM `Current` WHERE nim = :nim";
         $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid]);
+        $stmt->execute([':nim' => $nim]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -150,9 +141,9 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
 
     //add count
     try {
-        $sql="UPDATE `Users` SET `count`=`count`+1 WHERE id = :uid";
+        $sql="UPDATE `Users` SET `count`=`count`+1 WHERE id = :nim";
         $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid]);
+        $stmt->execute([':nim' => $nim]);
 
     } catch (PDOException $e) {
         $error = ['error' => ['text' => $e->getMessage()]];
@@ -165,7 +156,7 @@ $app->post('/pulang', function (Request $request, Response $response, array $arg
 
 $app->get('/listCurrent', function (Request $request, Response $response, array $args) {
 
-    $sql="SELECT `name`,`nim` FROM `Current` INNER JOIN `Users` ON Current.uid = Users.id";
+    $sql="SELECT `name`,`nim` FROM `Current` INNER JOIN `Users` ON Current.nim = Users.nim";
 
     try {
         $db = $this->get("db");
@@ -217,24 +208,40 @@ $app->get('/user/associate/propagate', function (Request $request, Response $res
         $mhsNIM = (string) ($event->xpath('//cas:attributes/cas:itbNIM')[0]);
     }
 
-    // Inserts to table
-    $q = "SELECT nim FROM Users WHERE mid=:mid";
     try {
         $db = $this->get("db");
 
+        // Checks if NIM is authorized
+        $q = "SELECT nim FROM peserta WHERE nim=:nim";
         $stmt = $db->prepare($q);
-        $stmt->execute([':mid' => $userId]);
+        $stmt->execute([':nim' => $mhsNIM]);
+
+        if($stmt->rowCount() == 0) {
+            // Unauthorized
+            return $this->renderer->render($response, 'propagate_failed.phtml', array("ina_url" => INA_LOGIN_URL, "base_url" => BASE_URL, "error" => "NIM Anda tidak terdaftar sebagai peserta SPARTA 2017."));
+        }
+
+        // Inserts to table
+        $q = "SELECT mid FROM Users WHERE nim=:nim";
+
+        $stmt = $db->prepare($q);
+        $stmt->execute([':nim' => $mhsNIM]);
 
         if($stmt->rowCount() == 0) {
             $ins = "INSERT INTO `Users`(`name`, `mid`, `nim`, `count`) VALUES (:name,:mid,:nim, 0)";
             $msg = "Halo, $mhsName ($mhsNIM)!";
+
+            $sti = $db->prepare($ins);
+            $sti->execute([':mid' => $userId, ':name' => $mhsName, ':nim' => $mhsNIM]);
         } else {
-            $ins = "UPDATE `Users` SET `name`=:name, `nim`=:nim WHERE `mid`=:mid";
+            $ins = "UPDATE `Users` SET `mid`=:mid WHERE `nim`=:nim";
             $msg = "Akun ini sekarang dihubungkan ke $mhsName ($mhsNIM).";
+
+            $sti = $db->prepare($ins);
+            $sti->execute([':mid' => $userId, ':nim' => $mhsNIM]);
         }
 
-        $sti = $db->prepare($ins);
-        $sti->execute([':mid' => $userId, ':name' => $mhsName, ':nim' => $mhsNIM]);
+
 
         /** @var \LINE\LINEBot $bot */
         $bot = $this->bot;
@@ -242,8 +249,7 @@ $app->get('/user/associate/propagate', function (Request $request, Response $res
 
         return $this->renderer->render($response, 'propagate.phtml', array("ina_url" => INA_LOGIN_URL, "base_url" => BASE_URL));
     } catch (PDOException $e) {
-        $error = ['error' => ['text' => $e->getMessage()]];
-        return $response->withJson($error);
+        return $this->renderer->render($response, 'propagate_failed.phtml', array("ina_url" => INA_LOGIN_URL, "base_url" => BASE_URL, "error" => $e->getMessage()));
     }
 
     //return $response->withJson(array('nama' => $mhsName, 'nim' => $mhsNIM));

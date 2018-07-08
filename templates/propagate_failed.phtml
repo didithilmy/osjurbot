@@ -6,13 +6,6 @@
         <title>Asosiasikan INA</title>
         <link href='//fonts.googleapis.com/css?family=Lato:300' rel='stylesheet' type='text/css'>
         <script src="https://d.line-scdn.net/liff/1.0/sdk.js"></script>
-        <script type="text/javascript">
-            window.onload = function (e) {
-                liff.init(function (data) {
-                    liff.closeWindow();
-                });
-            };
-        </script>
         <style>
             body {
                 margin: 50px 0 0 0;
@@ -36,7 +29,8 @@
     </head>
     <body>
     <div align="center">
-        <h3>Asosiasi berhasil!</h3>
+        <h3>Asosiasi gagal</h3>
+        <h2><?=$error?></h2>
         <p>Anda boleh menutup laman ini</p>
     </div>
     </body>

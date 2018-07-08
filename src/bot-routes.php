@@ -48,11 +48,6 @@ $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $r
         }
 
         processText($this->db, $bot, $event);
-
-        //$replyText = $event->getText();
-        //$logger->info('Reply text: ' . $replyText);
-        //$resp = $bot->replyText($event->getReplyToken(), $replyText);
-        //$logger->info($resp->getHTTPStatus() . ': ' . $resp->getRawBody());
     }
     $res->write('OK');
     return $res;
@@ -157,108 +152,5 @@ function processText($db, $bot, $event) {
                 }
             }
             break;
-    }
-}
-
-function login($db, $lineMid, $token) {
-
-    $q = "SELECT * FROM `Users` WHERE `mid`=:mid";
-    $stmt = $db->prepare($q);
-    $stmt->execute([':mid' => $lineMid]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $uid = $result['nim'];
-
-    $find = "SELECT * FROM `Current` WHERE `nim`=:nim";
-    $stmt = $db->prepare($find);
-    $stmt->execute([':nim' => $uid]);
-
-    if($stmt->rowCount() > 0) {
-        return "Kamu masih tercatat berada di basecamp. Logout terlebih dahulu. [plis jangan lupa logout kalo pulang]";
-    }
-
-    $sql = "INSERT INTO `Current`(`nim`) VALUES (:nim)";
-
-    $totp = TOTP::create(
-        SECRET,
-        TOTP_PERIOD // 5 menit
-    );
-
-    if(!$totp->verify($token)){
-        return "Token yang kamu masukkan salah.";
-    }
-
-    $stmt = $db->prepare($sql);
-    $stmt->execute([':nim' => $uid]);
-
-    return "Selamat datang di basecamp! Kamu tercatat masuk jam ".date("h:i:s").".";
-}
-
-function logout($db, $bot, $lineMid, $token) {
-
-    $q = "SELECT * FROM `Users` WHERE `mid`=:mid";
-    $stmt = $db->prepare($q);
-    $stmt->execute([':mid' => $lineMid]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $uid = $result['nim'];
-
-    $find = "SELECT * FROM `Current` WHERE `nim`=:nim";
-    $stmt = $db->prepare($find);
-    $stmt->execute([':nim' => $uid]);
-
-    if($stmt->rowCount() == 0) {
-        return "Kamu belum tercatat berada di basecamp. Ngapain logout ya?";
-    }
-
-    $sql = "DELETE FROM `Current` WHERE `nim`=:nim";
-
-    $totp = TOTP::create(
-        SECRET,
-        TOTP_PERIOD // 5 menit
-    );
-
-    if(!$totp->verify($token)){
-        return "Token yang kamu masukkan salah.";
-    }
-
-    $stmt = $db->prepare($sql);
-    $stmt->execute([':nim' => $uid]);
-
-
-    //Cek kuorum JIKA jam masih masuk jam kuorum
-    if(date("h") >= 9 && date("h")<= 17) {
-        $q = "SELECT * FROM `Current`";
-        $stmt = $db->prepare($q);
-        $stmt->execute();
-
-        $count = $stmt->rowCount();
-        if ($count <= KUORUM) {
-            pushToAllGroups($bot, new TextMessageBuilder("Basecamp TIDAK kuorum, tolong segera mengisi basecamp bagi yang memungkinkan. Saat ini basecamp terisi $count orang."));
-        } elseif ($count < (KUORUM + SAFE_COUNT)) {
-            pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
-        }
-    }
-
-    return "Selamat tinggal! Besok dateng lagi ya!!!!!!!!";
-}
-
-/** @var \LINE\LINEBot $bot */
-function pushToAllGroups($bot, $messageBuilder) {
-    $allowedGroupIds = explode(",", getenv("ALLOWED_GROUPS") ?: '');
-    foreach($allowedGroupIds as $gid) {
-        $bot->pushMessage($gid, $messageBuilder);
-    }
-}
-
-/** @var \LINE\LINEBot $bot */
-function pushToAllIndividuals($db, $bot, $messageBuilder) {
-    $q = "SELECT `mid` FROM `Users`";
-    $stmt = $db->prepare($q);
-    $stmt->execute();
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    foreach($results as $row) {
-        $bot->pushMessage($row['mid'], $messageBuilder);
     }
 }
