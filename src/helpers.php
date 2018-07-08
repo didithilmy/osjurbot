@@ -30,9 +30,9 @@ define("PERSONNEL_NO",197); // Jumlah seangkatan
 define("KUORUM",30); //Minimal orang yang ada
 define("KUORUM_HARIAN",PERSONNEL_NO/2); //Minimal orang yang ada dalam satu hari
 
-define("SECRET","SECRETCODE");
-define("BASE_URL","https://osjurbot.didithilmy.com/public");
-define("INA_LOGIN_URL","https://login.itb.ac.id");
+define("SECRET", getenv("TOTP_SECRET") ?: "SECRETCODE");
+define("BASE_URL", getenv("BASE_URL") ?: "https://osjurbot.didithilmy.com/public");
+define("INA_LOGIN_URL", getenv("INA_LOGIN_URL") ?: "https://login.itb.ac.id");
 
 function login($db, $lineMid, $token) {
 
