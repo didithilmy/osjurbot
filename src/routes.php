@@ -82,38 +82,7 @@ $app->post('/sampai', function (Request $request, Response $response, array $arg
         return $response->withJson($error);
     }
 
-    // Hapus dari yang wajib datang (jika ada)
-    $sql="SELECT * FROM `Users_shuffled` WHERE uid = :uid";
-
-    try {
-        $db = $this->get("db");
-
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':uid' => $uid]);
-
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    } catch (PDOException $e) {
-        $error = ['error' => ['text' => $e->getMessage()]];
-        return $response->withJson($error);
-    }
-
-    if(count($results)>=1){
-        $sql="DELETE FROM `Users_shuffled` WHERE uid = :uid LIMIT 1";
-
-        try {
-            $db = $this->get("db");
-
-            $stmt = $db->prepare($sql);
-            $stmt->execute([':uid' => $uid]);
-
-        } catch (PDOException $e) {
-            $error = ['error' => ['text' => $e->getMessage()]];
-            return $response->withJson($error);
-        }
-    }
-
-    return $response->withJson(['sukses']);
+    return $response->withJson(['sukses' => true]);
 
 });
 

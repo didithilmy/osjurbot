@@ -16,6 +16,7 @@ use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
 
 define("LIFF_ID_ASSOCINA", getenv("LIFF_ASSOCIATE_INA") ?: '1592475912-K596Y0YE');
+define("TOTP_PERIOD", getenv("TOTP_PERIOD") ?: 300);
 // Routes
 
 $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
@@ -46,7 +47,7 @@ $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $r
             continue;
         }
 
-        processText($bot, $event);
+        processText($this->db, $bot, $event);
 
         //$replyText = $event->getText();
         //$logger->info('Reply text: ' . $replyText);
@@ -57,8 +58,16 @@ $app->post('/webhook', function (\Slim\Http\Request $req, \Slim\Http\Response $r
     return $res;
 });
 
+$app->get('/debug/totp', function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+    $totp = TOTP::create(
+        SECRET,
+        TOTP_PERIOD // 5 menit
+    );
+    return $res->write($totp->now());
+});
+
 /** @var \LINE\LINEBot\Event\MessageEvent\TextMessage $event */
-function processText($bot, $event) {
+function processText($db, $bot, $event) {
     $allowedGroupIds = explode(",", getenv("ALLOWED_GROUPS") ?: '');
 
     $text = $event->getText();
@@ -95,12 +104,22 @@ function processText($bot, $event) {
             break;
         case "login":
             if($event->isUserEvent()) {
-                $bot->replyText($replyToken, "Development on progress. Token: " . $words[1]);
+                try {
+                    $status = login($db, $event->getUserId(), $words[1]);
+                    $bot->replyText($replyToken, $status);
+                } catch (PDOException $e) {
+                    $bot->replyText($replyToken, "Unexpected error [PDOException]");
+                }
             }
             break;
         case "logout":
             if($event->isUserEvent()) {
-                $bot->replyText($replyToken, "Development on progress.");
+                try {
+                    $status = logout($db, $bot, $event->getUserId(), $words[1]);
+                    $bot->replyText($replyToken, $status);
+                } catch (PDOException $e) {
+                    $bot->replyText($replyToken, "Unexpected error [PDOException]");
+                }
             }
             break;
         case "assoc":
@@ -125,12 +144,121 @@ function processText($bot, $event) {
         case "/status":
             if($event->isGroupEvent()) {
                 if(in_array($event->getGroupId(), $allowedGroupIds)) {
-                    $bot->replyText($replyToken, "Development on progress.");
+                    $q = "SELECT * FROM `Current`";
+                    $stmt = $db->prepare($q);
+                    $stmt->execute();
+
+                    $count = $stmt->rowCount();
+
+                    $bot->replyText($replyToken, "Saat ini basecamp terisi $count orang.");
                 } else {
                     $bot->replyText($replyToken, "Unauthorized.");
                     $bot->leaveGroup($event->getGroupId());
                 }
             }
             break;
+    }
+}
+
+function login($db, $lineMid, $token) {
+
+    $q = "SELECT * FROM `Users` WHERE `mid`=:mid";
+    $stmt = $db->prepare($q);
+    $stmt->execute([':mid' => $lineMid]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $uid = $result['nim'];
+
+    $find = "SELECT * FROM `Current` WHERE `nim`=:nim";
+    $stmt = $db->prepare($find);
+    $stmt->execute([':nim' => $uid]);
+
+    if($stmt->rowCount() > 0) {
+        return "Kamu masih tercatat berada di basecamp. Logout terlebih dahulu. [plis jangan lupa logout kalo pulang]";
+    }
+
+    $sql = "INSERT INTO `Current`(`nim`) VALUES (:nim)";
+
+    $totp = TOTP::create(
+        SECRET,
+        TOTP_PERIOD // 5 menit
+    );
+
+    if(!$totp->verify($token)){
+        return "Token yang kamu masukkan salah.";
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute([':nim' => $uid]);
+
+    return "Selamat datang di basecamp! Kamu tercatat masuk jam ".date("h:i:s").".";
+}
+
+function logout($db, $bot, $lineMid, $token) {
+
+    $q = "SELECT * FROM `Users` WHERE `mid`=:mid";
+    $stmt = $db->prepare($q);
+    $stmt->execute([':mid' => $lineMid]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $uid = $result['nim'];
+
+    $find = "SELECT * FROM `Current` WHERE `nim`=:nim";
+    $stmt = $db->prepare($find);
+    $stmt->execute([':nim' => $uid]);
+
+    if($stmt->rowCount() == 0) {
+        return "Kamu belum tercatat berada di basecamp. Ngapain logout ya?";
+    }
+
+    $sql = "DELETE FROM `Current` WHERE `nim`=:nim";
+
+    $totp = TOTP::create(
+        SECRET,
+        TOTP_PERIOD // 5 menit
+    );
+
+    if(!$totp->verify($token)){
+        return "Token yang kamu masukkan salah.";
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute([':nim' => $uid]);
+
+
+    //Cek kuorum JIKA jam masih masuk jam kuorum
+    if(date("h") >= 9 && date("h")<= 17) {
+        $q = "SELECT * FROM `Current`";
+        $stmt = $db->prepare($q);
+        $stmt->execute();
+
+        $count = $stmt->rowCount();
+        if ($count <= KUORUM) {
+            pushToAllGroups($bot, new TextMessageBuilder("Basecamp TIDAK kuorum, tolong segera mengisi basecamp bagi yang memungkinkan. Saat ini basecamp terisi $count orang."));
+        } elseif ($count < (KUORUM + SAFE_COUNT)) {
+            pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
+        }
+    }
+
+    return "Selamat tinggal! Besok dateng lagi ya!!!!!!!!";
+}
+
+/** @var \LINE\LINEBot $bot */
+function pushToAllGroups($bot, $messageBuilder) {
+    $allowedGroupIds = explode(",", getenv("ALLOWED_GROUPS") ?: '');
+    foreach($allowedGroupIds as $gid) {
+        $bot->pushMessage($gid, $messageBuilder);
+    }
+}
+
+/** @var \LINE\LINEBot $bot */
+function pushToAllIndividuals($db, $bot, $messageBuilder) {
+    $q = "SELECT `mid` FROM `Users`";
+    $stmt = $db->prepare($q);
+    $stmt->execute();
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach($results as $row) {
+        $bot->pushMessage($row['mid'], $messageBuilder);
     }
 }
