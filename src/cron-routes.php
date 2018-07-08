@@ -21,7 +21,7 @@ $app->get('/cron/kuorumberjalan',  function (\Slim\Http\Request $req, \Slim\Http
     /** @var \LINE\LINEBot $bot */
     $bot = $this->bot;
     //Cek kuorum JIKA jam masih masuk jam kuorum
-    //if(date("H") >= 9 && date("H")<= 17) {
+    if(date("H") >= 9 && date("H")<= 17) {
         $q = "SELECT * FROM `Current`";
         $stmt = $db->prepare($q);
         $stmt->execute();
@@ -32,7 +32,7 @@ $app->get('/cron/kuorumberjalan',  function (\Slim\Http\Request $req, \Slim\Http
         } elseif ($count < (KUORUM + SAFE_COUNT)) {
             pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
         }
-    //}
+    }
 });
 
 $app->get('/cron/kuorumharian',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
