@@ -18,7 +18,8 @@
         "monolog/monolog": "^1.17",
         "bryanjhv/slim-session": "~3.0",
         "spomky-labs/otphp": "^9.1",
-        "linecorp/line-bot-sdk": "^3.0"
+        "linecorp/line-bot-sdk": "^3.0",
+        "php-amqplib/php-amqplib": "^2.7"
     },
     "require-dev": {
         "phpunit/phpunit": ">=4.8 < 6.0"

@@ -22,6 +22,9 @@ use \LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
 
+use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Message\AMQPMessage;
+
 //Parameter
 define("RESERVED_COUNT",15); //Orang yang terjadwal jika ada masalah pada ACTIVE_COUNT
 define("ACTIVE_COUNT",45); //Orang yang akan dijadwalkan dataang
@@ -196,13 +199,92 @@ function getNotKuorumText($count) {
 }
 
 /** @var \LINE\LINEBot $bot */
-function pushToAllIndividuals($db, $bot, $messageBuilder) {
+/*function pushToAllIndividuals($app, $messageBuilder) {
+    $db = $app->db;
     $q = "SELECT `mid` FROM `Users`";
     $stmt = $db->prepare($q);
     $stmt->execute();
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    /** @var AMQPStreamConnection $amqp *
+    $amqp = $app->amqp;
+    $channel = $amqp->channel();
+    $channel->queue_declare("osjurbot-line-queue", false, true, false, false);
+
+    $arr = array();
+
     foreach($results as $row) {
-        $bot->pushMessage($row['mid'], $messageBuilder);
+        $payload = array(
+            "mid" => $row['mid'],
+            "msg" => serialize($messageBuilder)
+        );
+        array_push($arr, $payload);
     }
+
+    $message = new AMQPMessage(json_encode($arr));
+    $channel->basic_publish($message, '', 'osjurbot-line-queue');
+
+    $channel->close();
+    $amqp->close();
+}*/
+
+/** @var \LINE\LINEBot $bot */
+function pushTextToAllIndividuals($app, $text) {
+    $db = $app->db;
+    $q = "SELECT * FROM `Users`";
+    $stmt = $db->prepare($q);
+    $stmt->execute();
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    /** @var AMQPStreamConnection $amqp */
+    $amqp = $app->amqp;
+    $channel = $amqp->channel();
+    $channel->queue_declare("osjurbot-line-queue", false, true, false, false);
+
+    $arr = array();
+
+    foreach($results as $row) {
+        $payload = array(
+            "mid" => $row['mid'],
+            "txt" => serialize(str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text))
+        );
+        array_push($arr, $payload);
+    }
+
+    $message = new AMQPMessage(json_encode($arr));
+    $channel->basic_publish($message, '', 'osjurbot-line-queue');
+
+    $channel->close();
+    $amqp->close();
+}
+
+/** @var \LINE\LINEBot $bot */
+function pushTextToNIM($app, $text, array $nims) {
+    $db = $app->db;
+
+    /** @var AMQPStreamConnection $amqp */
+    $amqp = $app->amqp;
+    $channel = $amqp->channel();
+    $channel->queue_declare("osjurbot-line-queue", false, true, false, false);
+
+    $arr = array();
+
+    foreach ($nims as $nim) {
+        $q = "SELECT * FROM `Users` WHERE `nim`=:nim";
+        $stmt = $db->prepare($q);
+        $stmt->execute(["nim" => $nim]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $payload = array(
+            "mid" => $row['mid'],
+            "txt" => serialize(str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text))
+        );
+        array_push($arr, $payload);
+    }
+
+    $message = new AMQPMessage(json_encode($arr));
+    $channel->basic_publish($message, '', 'osjurbot-line-queue');
+
+    $channel->close();
+    $amqp->close();
 }

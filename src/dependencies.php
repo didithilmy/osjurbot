@@ -39,3 +39,11 @@ $container['bot'] = function ($c) {
     ]);
     return $bot;
 };
+
+// AMQP client
+$container['amqp'] = function($c) {
+    $settings = $c->get('settings');
+    $connection = new \PhpAmqpLib\Connection\AMQPStreamConnection($settings['amqp']['host'], $settings['amqp']['port'], $settings['amqp']['user'], $settings['amqp']['password'], $settings['amqp']['vhost']);
+
+    return $connection;
+};

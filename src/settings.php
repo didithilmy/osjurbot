@@ -29,5 +29,14 @@ return [
             'channelToken' => getenv('LINEBOT_CHANNEL_TOKEN') ?: '',
             'channelSecret' => getenv('LINEBOT_CHANNEL_SECRET') ?: '',
         ],
+
+        // LINE Bot instance
+        'amqp' => [
+            'host' => getenv('AMQP_HOST') ?: 'localhost',
+            'port' => getenv('AMQP_PORT') ?: 5672,
+            'user' => getenv('AMQP_USER') ?: 'guest',
+            'password' => getenv('AMQP_PASSWORD') ?: 'guest',
+            'vhost' => getenv('AMQP_VHOST') ?: '/',
+        ],
     ],
 ];
