@@ -1,0 +1,12 @@
+RewriteEngine on
+#RewriteBase /
+#terminate all rewrite loops
+RewriteCond %{ENV:REDIRECT_STATUS} 200
+RewriteRule ^ - [L]
+
+#checks if "/file" .php exists, if it exits ,map "/file" to "/file.php"
+RewriteCond %{REQUEST_FILENAME}.png -f
+RewriteRule ^(.*?)/?$ $1.png [L]
+#checks if "/file" .css exists, if it exits ,map "/file" to "/file.css"
+RewriteCond %{REQUEST_FILENAME}.jpg -f
+RewriteRule ^(.*?)/?$ $1.jpg [L]

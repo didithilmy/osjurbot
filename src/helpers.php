@@ -21,6 +21,7 @@ use \LINE\LINEBot\MessageBuilder\ImagemapMessageBuilder;
 use \LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
+use \LINE\LINEBot\MessageBuilder\LocationMessageBuilder;
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -287,4 +288,23 @@ function pushTextToNIM($app, $text, array $nims) {
 
     $channel->close();
     $amqp->close();
+}
+
+function getRandomBasecampMoveMeme() {
+    $messageBuilder = new MultiMessageBuilder();
+    $messageBuilder->add(new ImagemapMessageBuilder(
+        BASE_URL."/static/basecamp_move_".rand(1, 3),
+        "[BASECAMP PINDAH GUYS]",
+        new BaseSizeBuilder(1040, 1040),
+        [
+            new ImagemapUriActionBuilder(
+                'https://osjurbot.didithilmy.com',
+                new AreaBuilder(0, 0, 1, 1)
+            )
+        ]
+    ));
+    $messageBuilder->add(new TextMessageBuilder("Jadi, per tanggal 10 Juli 2018, basecamp kita sudah pindah ke GMKI di Jl. Ir. H. Djuanda. Jangan salah basecamp ya!!"));
+    $messageBuilder->add(new LocationMessageBuilder("Basecamp UNIX 2017", "GMKI Cabang Bandung, Jl. Ir. H.Djuanda, Lb. Siliwangi, Coblong, Kota Bandung, Jawa Barat 40132", -6.892697, 107.6108723));
+
+    return $messageBuilder;
 }

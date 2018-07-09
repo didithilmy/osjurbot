@@ -118,6 +118,7 @@ function processText($db, $bot, $event) {
             }
             break;
         case "assoc":
+        case "ina":
             if($event->isUserEvent()) {
                 $messageBuilder = new MultiMessageBuilder();
                 $messageBuilder->add(new TextMessageBuilder("Halo! Klik tombol di bawah ini ya buat nyambungin akun INA kamu"));
@@ -151,6 +152,9 @@ function processText($db, $bot, $event) {
                     $bot->leaveGroup($event->getGroupId());
                 }
             }
+            break;
+        case "/basecamp-moved":
+            $bot->replyMessage($replyToken, getRandomBasecampMoveMeme());
             break;
     }
 }

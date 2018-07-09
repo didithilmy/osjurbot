@@ -94,6 +94,10 @@ $app->get('/cron/kuorumharian',  function (\Slim\Http\Request $req, \Slim\Http\R
     pushToAllGroups($bot, $messageBuilder);
 });
 
+$app->get('/cron/newbasecamp',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+    pushToAllGroups($this->bot, getRandomBasecampMoveMeme());
+});
+
 $app->get('/debug/notifyAll',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
     pushTextToAllIndividuals($this, "Halo, {name} ({nim})!");
 });
