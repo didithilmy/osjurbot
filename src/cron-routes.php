@@ -15,8 +15,15 @@ use \LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
 
+define("CRONAPI_SECRET", getenv("CRONAPI_SECRET") ?: "SayaGakWibu");
+
 $app->get('/cron/kuorumberjalan',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
     $db = $this->db;
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
 
     /** @var \LINE\LINEBot $bot */
     $bot = $this->bot;
@@ -37,6 +44,11 @@ $app->get('/cron/kuorumberjalan',  function (\Slim\Http\Request $req, \Slim\Http
 
 $app->get('/cron/kuorumharian',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
     $db = $this->db;
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
 
     /** @var \LINE\LINEBot $bot */
     $bot = $this->bot;
@@ -94,10 +106,94 @@ $app->get('/cron/kuorumharian',  function (\Slim\Http\Request $req, \Slim\Http\R
     pushToAllGroups($bot, $messageBuilder);
 });
 
+$app->get('/cron/persuadeIndividuals',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+    $db = $this->db;
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
+
+    /** @var \LINE\LINEBot $bot */
+    $bot = $this->bot;
+    //Cek kuorum JIKA jam masih masuk jam kuorum
+    if(date("H") >= 9 && date("H")<= 17) {
+        $q = "SELECT * FROM `Current`";
+        $stmt = $db->prepare($q);
+        $stmt->execute();
+
+        $count = $stmt->rowCount();
+        if ($count <= KUORUM) {
+            $text = "[BAHAYA!]\n\nHi, {name}!\n\nSekarang basecamp gak kuorum nih, dan keliatannya kamu sedang tidak berada di basecamp.\n\nTolong hadir ke basecamp yaa, disini cuma ada $count orang..";
+            pushPersuasionMessage($this, $text);
+        } elseif ($count < (KUORUM + SAFE_COUNT)) {
+            $text = "Hi, {name}!\n\nDikit lagi basecamp gak kuorum nih, dan keliatannya kamu sedang tidak berada di basecamp.\n\nTolong hadir ke basecamp yaa, disini ada $count orang..";
+            pushPersuasionMessage($this, $text);
+        }
+    }
+});
+
 $app->get('/cron/newbasecamp',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
+
     pushToAllGroups($this->bot, getRandomBasecampMoveMeme());
 });
 
-$app->get('/debug/notifyAll',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
-    pushTextToAllIndividuals($this, "Halo, {name} ({nim})!");
+$app->post('/api/notifyAll',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
+
+    $message = $req->getParam("text");
+
+    pushTextToAllIndividuals($this, $message);
 });
+
+$app->post('/api/notify',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
+
+    $message = $req->getParam("text");
+    $nims = explode(",", $req->getParam("nim"));
+
+    pushTextToNIM($this, $message, $nims);
+});
+
+function pushPersuasionMessage($app, $text) {
+    $db = $app->db;
+
+    /** @var AMQPStreamConnection $amqp */
+    $amqp = $app->amqp;
+    $channel = $amqp->channel();
+    $channel->queue_declare("osjurbot-line-queue", false, true, false, false);
+
+    $q = "SELECT Users.* FROM `Users` LEFT JOIN Current ON Users.nim = Current.nim WHERE Current.nim IS NULL";
+
+    $stmt = $db->prepare($q);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $arr = array();
+    foreach($rows as $row) {
+        $payload = array(
+            "mid" => $row['mid'],
+            "txt" => str_replace(array("{name}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text)
+        );
+        array_push($arr, $payload);
+    }
+
+    $message = new AMQPMessage(json_encode($arr));
+    $channel->basic_publish($message, '', 'osjurbot-line-queue');
+
+    $channel->close();
+    $amqp->close();
+}

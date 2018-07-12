@@ -131,11 +131,12 @@ function logout($db, $bot, $lineMid, $token) {
         if ($count <= KUORUM) {
             pushToAllGroups($bot, buildNotKuorumMessage($count));
         } elseif ($count < (KUORUM + SAFE_COUNT)) {
-            pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
+            //TODO reconsider safe count messages
+            //pushToAllGroups($bot, new TextMessageBuilder("Mohon mengisi basecamp bagi yang tidak berhalangan."));
         }
     }
 
-    return "Selamat tinggal! Besok dateng lagi ya!!!!!!!!";
+    return "Selamat tinggal! Besok dateng lagi ya!";
 }
 
 /** @var \LINE\LINEBot $bot */
@@ -247,7 +248,7 @@ function pushTextToAllIndividuals($app, $text) {
     foreach($results as $row) {
         $payload = array(
             "mid" => $row['mid'],
-            "txt" => str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text)
+            "txt" => str_replace(array("{name}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text)
         );
         array_push($arr, $payload);
     }
@@ -278,7 +279,7 @@ function pushTextToNIM($app, $text, array $nims) {
 
         $payload = array(
             "mid" => $row['mid'],
-            "txt" => serialize(str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text))
+            "txt" => str_replace(array("{name}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text)
         );
         array_push($arr, $payload);
     }
