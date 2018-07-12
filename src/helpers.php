@@ -247,7 +247,7 @@ function pushTextToAllIndividuals($app, $text) {
     foreach($results as $row) {
         $payload = array(
             "mid" => $row['mid'],
-            "txt" => serialize(str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text))
+            "txt" => str_replace(array("{nama}", "{nim}", "{count}"), array($row['name'], $row['nim'], $row['count']), $text)
         );
         array_push($arr, $payload);
     }
