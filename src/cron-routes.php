@@ -14,6 +14,7 @@ use \LINE\LINEBot\MessageBuilder\ImagemapMessageBuilder;
 use \LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\ImagemapUriActionBuilder;
 use \LINE\LINEBot\ImagemapActionBuilder\AreaBuilder;
+use \PhpAmqpLib\Message\AMQPMessage;
 
 define("CRONAPI_SECRET", getenv("CRONAPI_SECRET") ?: "SayaGakWibu");
 
@@ -143,6 +144,17 @@ $app->get('/cron/newbasecamp',  function (\Slim\Http\Request $req, \Slim\Http\Re
     pushToAllGroups($this->bot, getRandomBasecampMoveMeme());
 });
 
+$app->get('/cron/resetDay',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
+
+    if($req->getParam("secret") !== CRONAPI_SECRET) {
+        // Incorrect secret
+        return;
+    }
+
+    $text = "Hi, {name}!\n\nBerhubung kamu terakhir login pada {jam_masuk} dan sampai sekarang belum logout, maka kamu otomatis ke-logout ya. \n\nJangan lupa login lagi pas di basecamp.";
+    pushAutoLogoutNotification($this, $text);
+});
+
 $app->post('/api/notifyAll',  function (\Slim\Http\Request $req, \Slim\Http\Response $res) {
 
     if($req->getParam("secret") !== CRONAPI_SECRET) {
@@ -196,4 +208,45 @@ function pushPersuasionMessage($app, $text) {
 
     $channel->close();
     $amqp->close();
+}
+
+function pushAutoLogoutNotification($app, $text) {
+    $db = $app->db;
+
+    /** @var AMQPStreamConnection $amqp */
+    $amqp = $app->amqp;
+    $channel = $amqp->channel();
+    $channel->queue_declare("osjurbot-line-queue", false, true, false, false);
+
+    // Get the upper cap (yesterday at 23.59)
+    $oDate = new DateTime();
+    $oDate->modify('-1 day');
+    $upperCap = $oDate->format('Y-m-d 23:59:59');
+
+    $q = "SELECT Users.*, Current.jam_masuk FROM `Users` LEFT JOIN Current ON Users.nim = Current.nim WHERE Current.nim IS NOT NULL AND Current.jam_masuk <= :ucap";
+
+    $stmt = $db->prepare($q);
+    $stmt->execute(['ucap' => $upperCap]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $arr = array();
+    foreach($rows as $row) {
+        $payload = array(
+            "mid" => $row['mid'],
+            "txt" => str_replace(array("{name}", "{nim}", "{count}", "{jam_masuk}"), array($row['name'], $row['nim'], $row['count'], date("d/m/Y H:i:s", strtotime($row['jam_masuk']))), $text)
+        );
+        array_push($arr, $payload);
+    }
+
+    $message = new AMQPMessage(json_encode($arr));
+    $channel->basic_publish($message, '', 'osjurbot-line-queue');
+
+    $channel->close();
+    $amqp->close();
+
+    // Truncate Current
+    $t = "DELETE FROM `Current` WHERE `jam_masuk` <= :ucap";
+
+    $stmt = $db->prepare($t);
+    $stmt->execute(['ucap' => $upperCap]);
 }
